@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 import DashboardPage from '../../src/pages/DashboardPage.vue';
 import * as apiModule from '../../src/api';
 
