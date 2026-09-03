@@ -5,8 +5,10 @@ Hands-on 5-hour workshop to build a web-based procurement MVP and practice Copil
 ## Workshop Scope
 - Baseline provided in repo: database schema + Home/Dashboard + PR module (list/create/detail + PR APIs)
 - Participant implementation backlog: PO module only (list/create/detail + PO APIs + PO validations)
-- GR module: out of implementation scope during workshop (further exploration)
+- GR module: implemented in this repo as a further-exploration reference (list/create/detail + GR APIs + GR validations)
 - Optional extension: bookmark feature (`PR`, `PO`, `GR`) as post-backlog exercise
+
+See [docs/refs/PROGRESS.md](docs/refs/PROGRESS.md) for the current implementation status and full API reference of the PO and GR modules.
 
 Canonical workshop document: [docs/plan.md](docs/plan.md)
 
@@ -96,10 +98,11 @@ npm run dev
 ## Validation Rules
 1. PO allocation qty must not exceed PR line remaining qty.
 2. PO status transition rules must be enforced.
-3. GR validations are optional exploration after workshop backlog.
+3. GR received qty must not exceed the PO line's open qty; a GR can only be created against a `SUBMITTED` PO and only posted once, from `DRAFT` to `POSTED`.
 
 ## Suggested Workshop Output
 - Running baseline PR module + participant-completed PO module on Docker PostgreSQL
 - PO happy path demo: create PO from approved PR open lines, submit, and view detail
+- GR happy path demo (further exploration): create GR from a submitted PO's open lines, post it, and confirm PO/PR quantities update
 - Focused Jest tests for PO business validations (over-allocation + status transition)
 - Playwright coverage focused on PO flow integrated with baseline PR data

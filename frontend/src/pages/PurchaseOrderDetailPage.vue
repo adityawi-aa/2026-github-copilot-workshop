@@ -18,6 +18,13 @@
         >
           Submit PO
         </button>
+        <RouterLink
+          v-if="purchaseOrder.status === 'SUBMITTED' && hasOpenLines"
+          class="btn btn-outline"
+          :to="`/goods-receipts/new?poId=${purchaseOrder.id}`"
+        >
+          Create GR
+        </RouterLink>
       </div>
     </div>
 
@@ -86,7 +93,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { api } from '../api';
 
@@ -94,6 +101,10 @@ const route = useRoute();
 const purchaseOrder = ref(null);
 const errorMessage = ref('');
 const submitting = ref(false);
+
+const hasOpenLines = computed(() =>
+  (purchaseOrder.value?.lines || []).some((line) => line.qtyOpenForGr > 0),
+);
 
 function formatDate(value) {
   return value ? String(value).slice(0, 10) : '-';

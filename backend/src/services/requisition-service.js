@@ -63,9 +63,28 @@ export async function getRequisitionById(db, id) {
     [id]
   );
 
+  const allocResult = await db.query(
+    `SELECT a.pr_line_id, a.allocated_qty, po.id AS po_id, po.po_number
+     FROM pr_line_allocations a
+     JOIN po_lines pl ON pl.id = a.po_line_id
+     JOIN purchase_orders po ON po.id = pl.po_id
+     WHERE a.pr_line_id = ANY($1::uuid[])`,
+    [linesResult.rows.map((row) => row.id)]
+  );
+
+  const linkedPosByLine = new Map();
+  for (const row of allocResult.rows) {
+    const list = linkedPosByLine.get(row.pr_line_id) || [];
+    list.push({ poId: row.po_id, poNumber: row.po_number, allocatedQty: Number(row.allocated_qty) });
+    linkedPosByLine.set(row.pr_line_id, list);
+  }
+
   return {
     ...mapHeader(headerResult.rows[0]),
-    lines: linesResult.rows.map(mapLine),
+    lines: linesResult.rows.map((row) => ({
+      ...mapLine(row),
+      linkedPurchaseOrders: linkedPosByLine.get(row.id) || [],
+    })),
   };
 }
 

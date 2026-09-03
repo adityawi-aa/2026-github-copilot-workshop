@@ -334,6 +334,7 @@ td a {
 .status-badge.draft { background: #f3f3f3; color: #888; }
 .status-badge.submitted { background: #fff3e0; color: #e65100; }
 .status-badge.approved { background: #e8f5e9; color: #2e7d32; }
+.status-badge.posted { background: #e8f5e9; color: #2e7d32; }
 
 /* ===== Utility ===== */
 .muted { color: var(--text-muted); font-size: 13px; }

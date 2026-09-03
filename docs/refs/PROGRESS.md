@@ -10,18 +10,21 @@ This repository is a workshop-sized procurement management MVP. Its intended flo
 2. Submit and approve the PR.
 3. Create a Purchase Order (PO) from approved PR lines.
 4. Submit the PO.
-5. Use PO open lines as the source for future Goods Receipt (GR) work.
+5. Create a Goods Receipt (GR) from the submitted PO's open lines.
+6. Post the GR, which updates PO and PR received quantities.
+7. Open the PR detail to see linked PO/GR and quantities.
 
 The codebase uses Fastify and PostgreSQL on the backend, Vue 3 and Vite on the frontend, Jest for backend tests, Vitest for frontend tests, and Playwright for planned end-to-end coverage. PostgreSQL is bootstrapped through Docker using the migration and seed files under `db/`.
 
-The database schema includes PR, PO, allocation, and GR tables. GR tables exist in the schema, but GR routes, services, pages, and business logic are not implemented in this workshop sprint.
+The database schema includes PR, PO, allocation, and GR tables. PR and PO were the original workshop baseline/backlog. GR (routes, services, pages, and business logic) has since been implemented as a further-exploration reference on top of that baseline.
 
 ## 2. Implemented Features
 
 ### Backend
 
-- Fastify application setup with CORS, Swagger UI at `/api-docs`, PostgreSQL plugin, PR routes, PO routes, and `/health`.
+- Fastify application setup with CORS, Swagger UI at `/api-docs`, PostgreSQL plugin, PR routes, PO routes, GR routes, and `/health`.
 - PR service and routes for listing, creating, viewing, submitting, approving, and retrieving open PR lines.
+- PR detail (`GET /api/requisitions/:id`) includes a `linkedPurchaseOrders` array per line (PO id, PO number, allocated qty), joined via `pr_line_allocations`.
 - PO service and routes for listing, creating, viewing, submitting, and retrieving open PO lines.
 - PO creation validates the request body, vendor name, line fields, positive quantities, and non-negative unit prices.
 - PO allocation only accepts PR lines whose requisition is `APPROVED`.
@@ -31,26 +34,33 @@ The database schema includes PR, PO, allocation, and GR tables. GR tables exist 
 - Failed PO creation rolls back the transaction and releases the database client.
 - PO detail maps line allocations back to their source PR number and line ID.
 - PO open lines include only lines where `qtyOrdered - qtyReceived > 0`.
+- GR service and routes for listing, creating (`DRAFT`), viewing, and posting (`DRAFT` → `POSTED`).
+- GR creation requires the referenced PO to be `SUBMITTED`, validates each line's `poLineId`/`actualSiteCode`/`qtyReceived`, and rejects a receipt qty that exceeds the PO line's currently committed open qty. No quantities are mutated at create time.
+- GR posting locks each referenced `po_lines` row with `SELECT ... FOR UPDATE`, re-validates the open qty, updates `po_lines.qty_received`, and cascades the same delta to `pr_lines.qty_received` via `pr_line_allocations` (split proportionally by `allocated_qty` when a PO line has more than one allocation).
+- Failed GR create/post rolls back the transaction and releases the database client.
 
 ### Frontend
 
 - Dashboard page with PR statistics and recent requisitions.
-- PR list, create, and detail pages with the existing PR workflow.
-- PO navigation link and `/purchase-orders/new` route.
-- PO create page with reusable header and line-allocation components.
-- PO create UI supports adding/removing lines, selected-line counting, estimated-total calculation, vendor validation, and local placeholder messages for draft/save and submit actions.
-
-The PO create page is currently presentation-only: it does not call the backend PO API and does not yet load approved PR open lines.
+- PR list, create, and detail pages with the existing PR workflow; PR detail now shows a "QTY Received" column and a "Linked PO" column per line.
+- PO list, create, and detail pages, fully wired to the backend PO API (list/create/detail/submit).
+- PO create page pulls open lines from approved PRs, allocates quantities with client-side validation mirroring the server rule, and supports "Save as Draft" and "Submit PO".
+- PO detail page shows a "Create GR" button when the PO is `SUBMITTED` and has at least one line with open qty for GR.
+- GR list, create, and detail pages, fully wired to the backend GR API (list/create/detail/post).
+- GR create page accepts a `poId` route query (from the PO detail button) or lets the user pick a `SUBMITTED` PO from a dropdown, loads that PO's open lines via `GET /api/purchase-orders/:id/open-lines`, and supports "Save as Draft" and "Post GR" with client-side qty/site validation mirroring the server rules.
+- Navigation includes a top-level "Goods Receipts" link alongside "Purchase Requisitions" and "Purchase Orders".
 
 ### Automated Tests
 
-- Backend Jest: 27 tests passing across the PR and PO service suites.
-- Frontend Vitest: 13 tests passing across the dashboard, PO create page, PO header form, and PO line allocation table.
-- Playwright E2E specs are not present yet.
+- Backend Jest: 45 tests passing across the PR, PO, and GR service suites (3 suites).
+- Frontend Vitest: 36 tests passing across dashboard, PR, PO, and GR pages/components (10 files).
+- Playwright E2E: `tests/e2e/po-module.spec.js` covers the PR → PO flow. No GR end-to-end spec exists yet.
 
-## 3. Available PO API Endpoints
+## 3. Available API Endpoints
 
-All endpoints are registered by `backend/src/routes/purchase-order-routes.js` and use JSON responses. Validation and business-rule failures return `{ "message": "..." }`.
+All endpoints use JSON responses. Validation and business-rule failures return `{ "message": "..." }`.
+
+### Purchase Order (`backend/src/routes/purchase-order-routes.js`)
 
 | Method | Endpoint | Purpose | Success response | Error responses |
 | --- | --- | --- | --- | --- |
@@ -60,7 +70,7 @@ All endpoints are registered by `backend/src/routes/purchase-order-routes.js` an
 | `POST` | `/api/purchase-orders/:id/submit` | Transition a PO from `DRAFT` to `SUBMITTED` | `200`: updated PO detail object | `404`: PO not found; `422`: PO is not `DRAFT` |
 | `GET` | `/api/purchase-orders/:id/open-lines` | Return PO lines still available for GR | `200`: `{ purchaseOrder: { id, poNumber, status }, openLines: [...] }` | `404`: `{ message: "Purchase order not found" }` |
 
-### PO Create Request Body
+#### PO Create Request Body
 
 ```json
 {
@@ -82,28 +92,59 @@ All endpoints are registered by `backend/src/routes/purchase-order-routes.js` an
 
 `requiredDate` is optional. Each line must include `prLineId`, `itemCode`, `itemName`, `uom`, and `siteCode`; `qtyOrdered` must be greater than zero and `unitPrice` must be zero or greater.
 
-### PO Detail Shape
+#### PO Detail Shape
 
 PO detail responses contain header fields plus `lines`. A line contains `id`, `lineNo`, `itemCode`, `itemName`, `qtyOrdered`, `qtyReceived`, `qtyOpenForGr`, `uom`, `unitPrice`, `siteCode`, `requiredDate`, and `allocations`. Each allocation contains `prLineId`, `prNumber`, and `allocatedQty`.
 
+### Goods Receipt (`backend/src/routes/goods-receipt-routes.js`)
+
+| Method | Endpoint | Purpose | Success response | Error responses |
+| --- | --- | --- | --- | --- |
+| `GET` | `/api/goods-receipts` | List all GRs, newest first | `200`: `{ items: [...] }` with header fields `id`, `grNumber`, `poId`, `poNumber`, `status`, `receiptDate`, `createdAt`, and `updatedAt` | Backend error handling applies |
+| `POST` | `/api/goods-receipts` | Create a GR (`DRAFT`) against a `SUBMITTED` PO's open lines | `201`: GR detail object; newly created GR has `DRAFT` status | `422`: invalid body, missing fields, PO not found, PO not `SUBMITTED`, PO line not found, or receipt qty exceeds open qty |
+| `GET` | `/api/goods-receipts/:id` | Return a GR header and lines | `200`: GR detail object | `404`: `{ message: "Goods receipt not found" }` |
+| `POST` | `/api/goods-receipts/:id/post` | Transition a GR from `DRAFT` to `POSTED`, cascading received qty to PO/PR lines | `200`: updated GR detail object | `404`: GR not found; `422`: GR is not `DRAFT`, or receipt qty exceeds the PO line's currently open qty |
+
+#### GR Create Request Body
+
+```json
+{
+  "poId": "submitted-po-uuid",
+  "receiptDate": "2026-09-10",
+  "notes": "Partial delivery",
+  "lines": [
+    {
+      "poLineId": "po-line-uuid",
+      "qtyReceived": 5,
+      "actualSiteCode": "WH-JKT"
+    }
+  ]
+}
+```
+
+`receiptDate` and `notes` are optional. Each line must include `poLineId` and `actualSiteCode`; `qtyReceived` must be greater than zero and must not exceed the PO line's open qty (`qtyOrdered - qtyReceived`) at the time of creation.
+
+#### GR Detail Shape
+
+GR detail responses contain header fields (`id`, `grNumber`, `poId`, `poNumber`, `status`, `receiptDate`, `notes`, `createdAt`, `updatedAt`) plus `lines`. A line contains `id`, `lineNo`, `poLineId`, `itemCode`, `itemName`, `qtyReceived`, and `actualSiteCode`.
+
 ## 4. Current Gaps and Next Work
 
-The backend PO module is implemented and covered by service tests. The remaining PO backlog is primarily frontend integration:
+The PO and GR modules are both implemented end-to-end (backend services/routes + frontend pages) and covered by service-level and component/page tests. Remaining work:
 
-1. Add `listPurchaseOrders`, `getPurchaseOrder`, `createPurchaseOrder`, and `submitPurchaseOrder` to `frontend/src/api.js`.
-2. Connect the PO create page to approved PR listing/open-lines data and the create endpoint.
-3. Add PO list and PO detail pages and register their routes.
-4. Replace the PO page's local placeholder actions with API calls and navigation.
-5. Add a Playwright flow covering PR creation/approval through PO creation, submission, and detail verification.
+1. Add a Playwright e2e flow covering PR approval → PO create/submit → GR create/post → PR/PO detail quantity assertions.
+2. Consider list-page filters for GR (e.g., by PO number or status) if the workshop wants to explore that further.
+3. Bookmark feature (`PR`/`PO`/`GR`) remains a post-backlog optional exercise, intended to be driven via GitHub Issue-based development.
 
-GR implementation remains outside the current workshop scope. Advanced approval workflows, reporting, notifications, SSO, and enterprise compliance features are also out of scope.
+Advanced approval workflows, reporting, notifications, SSO, and enterprise compliance features remain out of scope by design (see [docs/plan.md](../plan.md)).
 
 ## 5. Verification
 
-The following command was run from the repository root on 2026-09-03:
+The following commands were run from the `backend` and `frontend` directories on 2026-09-03:
 
 ```text
-npm test
+cd backend && npm test
+cd frontend && npx vitest run
 ```
 
-Result: backend Jest passed with 2 suites and 27 tests; frontend Vitest passed with 4 files and 13 tests. No Playwright E2E suite was run because no E2E spec files are currently present.
+Result: backend Jest passed with 3 suites and 45 tests (PR, PO, GR services); frontend Vitest passed with 10 files and 36 tests (dashboard, PR, PO, GR pages/components). No Playwright E2E run was performed in this pass; the existing `tests/e2e/po-module.spec.js` spec covers the PR → PO flow only.

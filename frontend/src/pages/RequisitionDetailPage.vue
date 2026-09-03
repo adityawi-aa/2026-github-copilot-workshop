@@ -60,6 +60,8 @@
             <th>Item Code</th>
             <th>Item Name</th>
             <th>QTY</th>
+            <th>QTY Received</th>
+            <th>Linked PO</th>
             <th>UOM</th>
             <th>Est. Unit Price</th>
             <th>Site</th>
@@ -73,6 +75,8 @@
             <td>{{ line.itemCode }}</td>
             <td>{{ line.itemName }}</td>
             <td>{{ line.qtyRequested }}</td>
+            <td>{{ line.qtyReceived }}</td>
+            <td>{{ formatLinkedPurchaseOrders(line.linkedPurchaseOrders) }}</td>
             <td>{{ line.uom }}</td>
             <td>{{ line.estUnitPrice }}</td>
             <td>{{ line.siteCode }}</td>
@@ -93,6 +97,11 @@ import { api } from '../api';
 const route = useRoute();
 const requisition = ref(null);
 const errorMessage = ref('');
+
+function formatLinkedPurchaseOrders(linkedPurchaseOrders = []) {
+  if (linkedPurchaseOrders.length === 0) return '-';
+  return linkedPurchaseOrders.map((po) => `${po.poNumber} (${po.allocatedQty})`).join(', ');
+}
 
 async function load() {
   errorMessage.value = '';
