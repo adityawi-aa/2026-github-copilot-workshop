@@ -9,7 +9,7 @@ function mockDb(queryImpl) {
 }
 
 describe('requisition-service list functions', () => {
-  test('listRequisitions returns mapped header fields', async () => {
+  test('listRequisitions returns mapped header fields and orders correctly', async () => {
     const db = mockDb(() => ({
       rows: [
         {
@@ -19,9 +19,22 @@ describe('requisition-service list functions', () => {
           requester_name: 'Rina',
           department_name: 'Ops',
           title: 'Spare parts',
+          notes: 'Urgent replacement',
           needed_by_date: '2026-06-15',
           created_at: '2026-05-01T10:00:00.000Z',
           updated_at: '2026-05-01T10:00:00.000Z',
+        },
+        {
+          id: 'pr-2',
+          pr_number: 'PR-2026-0002',
+          status: 'DRAFT',
+          requester_name: 'Budi',
+          department_name: 'IT',
+          title: 'Laptops',
+          notes: null,
+          needed_by_date: '2026-07-01',
+          created_at: '2026-05-02T10:00:00.000Z',
+          updated_at: '2026-05-02T10:00:00.000Z',
         },
       ],
     }));
@@ -29,20 +42,26 @@ describe('requisition-service list functions', () => {
     const result = await listRequisitions(db);
 
     expect(db.query).toHaveBeenCalledTimes(1);
-    expect(result).toEqual([
-      {
-        id: 'pr-1',
-        prNumber: 'PR-2026-0001',
-        status: 'APPROVED',
-        requesterName: 'Rina',
-        departmentName: 'Ops',
-        title: 'Spare parts',
-        notes: undefined,
-        neededByDate: '2026-06-15',
-        createdAt: '2026-05-01T10:00:00.000Z',
-        updatedAt: '2026-05-01T10:00:00.000Z',
-      },
-    ]);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({
+      id: 'pr-1',
+      prNumber: 'PR-2026-0001',
+      status: 'APPROVED',
+      requesterName: 'Rina',
+      departmentName: 'Ops',
+      title: 'Spare parts',
+      notes: 'Urgent replacement',
+      neededByDate: '2026-06-15',
+      createdAt: '2026-05-01T10:00:00.000Z',
+      updatedAt: '2026-05-01T10:00:00.000Z',
+    });
+    expect(result[1].prNumber).toBe('PR-2026-0002');
+  });
+
+  test('listRequisitions returns empty array when no PRs exist', async () => {
+    const db = mockDb(() => ({ rows: [] }));
+    const result = await listRequisitions(db);
+    expect(result).toEqual([]);
   });
 
   test('getRequisitionOpenLines returns null when requisition not found', async () => {

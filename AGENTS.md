@@ -40,6 +40,17 @@ Reference plan: `docs/plan.md`.
 - Enforce PO rule: allocation qty <= PR line remaining qty.
 - GR endpoints/rules can be left untouched during workshop implementation.
 
+## Response Style
+- Be extremely concise. No pleasantries, no filler.
+- When asked to write code, return code only unless explanation is explicitly requested.
+- No sycophantic preambles ("Sure!", "Great question!", "Absolutely!").
+- No "Here's a function that..." preambles.
+- Don't restate the question before answering.
+- No "Note:", "Tip:", or "Remember:" appendices unless asked.
+- No usage examples unless asked.
+- No unsolicited suggestions or improvements beyond what was asked.
+- Use short variable names where meaning is clear from context.
+
 ## Code Style Guidance
 - Keep files short and readable for workshop participants.
 - Use explicit naming; avoid clever patterns.
@@ -55,6 +66,49 @@ Reference plan: `docs/plan.md`.
 - Follow the existing UI patterns established in the baseline for consistency.
 - Always respect the CSS variables set in the baseline for colors, spacing, and typography.
 - Never use emojis in the UI or commit messages. Create a custom SVG icon if needed for visual emphasis.
+
+## RTK (Rust Token Killer) - Token-Optimized CLI
+
+`rtk` is a CLI proxy that filters and compresses command outputs, saving 60-90% tokens.
+
+**Always** prefix commands with `rtk`. If RTK has a dedicated filter, it uses it. If not, it passes through unchanged. This means RTK is always safe to use.
+
+
+Instead of:
+```
+ls -la .
+git status
+git log -10
+docker ps
+```
+
+Use:
+```
+rtk ls -la .
+rtk git status
+rtk git log -10
+rtk docker ps
+```
+
+### RTK commands example
+
+```bash
+rtk ls <path>
+rtk read <file>
+rtk find <pattern>
+
+rtk err <cmd>           # Filter errors only from any command
+rtk log <file>          # Deduplicated logs with counts
+rtk json <file>         # JSON structure without values
+
+rtk curl <url>          # Compact HTTP responses
+
+rtk docker ps           # Compact container list
+rtk docker images       # Compact image list
+rtk docker logs <c>     # Deduplicated logs
+```
+
+<!-- /rtk-instructions -->
 
 ## Optional Extension
 - Bookmark feature (PR|PO|GR) is an optional post-backlog exercise and should be driven via GitHub Issue creation workflow.

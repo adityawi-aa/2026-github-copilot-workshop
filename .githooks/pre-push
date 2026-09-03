@@ -1,0 +1,14 @@
+#!/bin/sh
+# Blocks the push when the unit test suites fail.
+
+echo "pre-push: running npm test"
+
+if ! npm test; then
+  echo ""
+  echo "pre-push: tests failed. Push aborted."
+  echo "pre-push: fix the failing tests, or bypass with 'git push --no-verify' if you know what you are doing."
+  exit 1
+fi
+
+echo "pre-push: tests passed."
+exit 0
