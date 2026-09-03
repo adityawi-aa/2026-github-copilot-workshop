@@ -19,7 +19,7 @@ Build the workshop MVP with the existing PR baseline as fixed context and the Pu
 ## Current state (verified against the code)
 - Backend PO API + service: DONE — routes (list/create/submit/detail/open-lines) in `backend/src/routes/purchase-order-routes.js` and service logic in `backend/src/services/purchase-order-service.js`, including the over-allocation guard with `FOR UPDATE` row locking and the `DRAFT -> SUBMITTED` transition.
 - Backend Jest tests: PRESENT at `backend/tests/services/purchase-order-service.test.js` (run to confirm green).
-- Frontend PO pages: MISSING — no PO pages, no PO routes, no PO nav link, no PO methods in `frontend/src/api.js`.
+- Frontend PO pages: PRESENT — PO routes, nav link, pages (list/create/detail), and PO methods in `frontend/src/api.js` are implemented.
 - Playwright E2E: MISSING — no `.spec.js` files exist.
 - The PR open-lines API (`getRequisitionOpenLines`) already exists and is the allocation source for PO create.
 
