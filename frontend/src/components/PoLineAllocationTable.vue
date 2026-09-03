@@ -99,7 +99,7 @@ defineProps({
   // remainingQty, selected, orderQty, deliveryAddress, deliveryDate, unitPrice
   lines: {
     type: Array,
-    required: true,
+    required: false,
     default: () => [],
   },
 });
